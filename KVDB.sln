@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.32413.511
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "KVDB.CLI", "KVDB.CLI\KVDB.CLI.csproj", "{DB1286E8-711D-4E77-ADFC-E6BFE7B081DD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KVDB", "KVDB\KVDB.csproj", "{30EF9C3A-6920-4088-8FF6-2033A7A9E165}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{DB1286E8-711D-4E77-ADFC-E6BFE7B081DD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DB1286E8-711D-4E77-ADFC-E6BFE7B081DD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DB1286E8-711D-4E77-ADFC-E6BFE7B081DD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DB1286E8-711D-4E77-ADFC-E6BFE7B081DD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{30EF9C3A-6920-4088-8FF6-2033A7A9E165}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{30EF9C3A-6920-4088-8FF6-2033A7A9E165}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{30EF9C3A-6920-4088-8FF6-2033A7A9E165}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{30EF9C3A-6920-4088-8FF6-2033A7A9E165}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {E9A5BDF5-8422-416F-81BA-A19B27135630}
+	EndGlobalSection
+EndGlobal
