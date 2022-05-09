@@ -1,9 +1,6 @@
-﻿using System.Runtime.InteropServices;
-
-namespace KVDB.DataObject
+﻿namespace KVDB.DataObject
 {
-    [StructLayout(LayoutKind.Sequential)]
-    public struct RecordPointer
+    public class RecordPointer
     {
         public byte[] Key;
         public uint FileID;

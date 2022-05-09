@@ -1,9 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 using System.IO;
 using KVDB.DataObject;
-using System.Runtime.InteropServices;
+using KVDB.Converters;
 
 namespace KVDB.Storage
 {
@@ -12,12 +10,7 @@ namespace KVDB.Storage
         public static DataFileHeader ReadHeader(string path)
         {
             using var file = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-            var header = new DataFileHeader();
-            var headerData = new byte[12];
-            file.Read(headerData);
-            header.FileID = BitConverter.ToUInt32(headerData, 0);
-            header.Created = BitConverter.ToInt64(headerData, 4);
-            return header;
+            return DataFileHeaderConverter.FromStream(file);
         }
 
         FileStream file;
@@ -45,21 +38,19 @@ namespace KVDB.Storage
                     FileID = fileID,
                     Created = DateTimeOffset.Now.ToUnixTimeSeconds()
                 };
-                file.Write(header.ToByteArray());
+                DataFileHeaderConverter.ToStream(header, file);
+                file.Flush();
             }
             else
             {
-                header = new DataFileHeader();
-                var headerData = new byte[12];
-                file.Read(headerData);
-                header.FileID = BitConverter.ToUInt32(headerData, 0);
-                header.Created = BitConverter.ToInt64(headerData, 4);
+                header = DataFileHeaderConverter.FromStream(file);
 
                 if (header.FileID != fileID)
                 {
                     throw new Exception($"File id ({header.FileID}) does not match expected id ({fileID})");
                 }
             }
+            Size = file.Length;
         }
 
         public void Dispose()
@@ -84,27 +75,20 @@ namespace KVDB.Storage
             }
         }
 
-        public long Size
-        {
-            get
-            {
-                return file.Length;
-            }
-        }
-
+        public long Size { get; private set; }
         public void Reset()
         {
             file.Seek(12, SeekOrigin.Begin);
         }
 
-        public RecordPointer? NextPointer()
+        public RecordPointer NextPointer()
         {
-            if (file.Position >= file.Length)
+            if (file.Position >= Size)
             {
                 return null;
             }
 
-            var record = new Record(file);
+            var record = RecordConverter.FromStream(file);
             if (!record.ValidChecksum())
             {
                 throw new Exception("Invalid checksum");
@@ -127,7 +111,10 @@ namespace KVDB.Storage
             }
             record.UpdateChecksum();
             file.Seek(0, SeekOrigin.End);
-            file.Write(record.ToByteArray());
+            var oldPosition = file.Position;
+            RecordConverter.ToStream(ref record, file);
+            Size += file.Position - oldPosition;
+            file.Flush();
             return new RecordPointer()
             {
                 Key = record.Key,
@@ -138,14 +125,16 @@ namespace KVDB.Storage
             };
         }
 
-        public void Lock()
+        public void Archive()
         {
             if (file.CanWrite)
             {
                 var path = file.Name;
                 file.Close();
                 ((IDisposable)file).Dispose();
-                file = File.Open(path, FileMode.Open, FileAccess.Read);
+                var newName = Path.Combine(Path.GetDirectoryName(path), $"archive.{FileID}.db");
+                File.Move(path, newName);
+                file = File.Open(newName, FileMode.Open, FileAccess.Read);
             }
         }
 

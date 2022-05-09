@@ -1,8 +1,4 @@
-﻿using KVDB;
-using KVDB.DataObject;
-using System;
-using System.Collections.Generic;
-using System.IO;
+﻿using System;
 using System.Text;
 
 namespace KVDB.CLI
@@ -11,16 +7,17 @@ namespace KVDB.CLI
     {
         static void Main(string[] args)
         {
-            var path = "test.db";
+            var path = "test";
 
             using var db = new Database();
             db.Open(path);
             
-            for (var i = 0; i < 100000; i++)
-            {
-                db.Put(Encoding.UTF8.GetBytes("test"), BitConverter.GetBytes(i));
-            }
-            var x = BitConverter.ToInt32(db.Get(Encoding.UTF8.GetBytes("test")));
+            //for (var i = 0; i < 3000000; i++)
+            //{
+            //    db.Put(Encoding.UTF8.GetBytes($"test.{i}"), BitConverter.GetBytes(i));
+            //    db.Put(Encoding.UTF8.GetBytes($"max"), BitConverter.GetBytes(i));
+            //}
+            var x = BitConverter.ToInt32(db.Get(Encoding.UTF8.GetBytes("max")));
 
             Console.WriteLine($"Value = {x}");
         }

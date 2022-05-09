@@ -7,17 +7,6 @@ namespace KVDB.DataObject
     [StructLayout(LayoutKind.Sequential)]
     public struct Record
     {
-        public Record(Stream stream)
-        {
-            using var br = new BinaryReader(stream, System.Text.Encoding.Default, true);
-            Checksum = br.ReadUInt32();
-            Timestamp = br.ReadInt64();
-            KeySize = br.ReadUInt16();
-            ValueSize = br.ReadInt32();
-            Key = br.ReadBytes(KeySize);
-            Value = br.ReadBytes(ValueSize);
-        }
-
         public Record(byte[] key, byte[] value)
         {
             Checksum = 0;

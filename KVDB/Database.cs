@@ -1,18 +1,17 @@
 ﻿using KVDB.Storage;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.IO;
+using System.Text.RegularExpressions;
 using KVDB.DataObject;
 
 namespace KVDB
 {
     public class Database : IDisposable
     {
+        string dataDir;
         DataFile activeFile;
-
-        Dictionary<uint, DataFile> archiveFiles = new Dictionary<uint, DataFile>();
+        readonly Dictionary<uint, DataFile> archiveFiles = new Dictionary<uint, DataFile>();
 
         uint nextFileID = 1;
 
@@ -20,13 +19,22 @@ namespace KVDB
 
         public long ActiveDataFileSizeLimit { get; set; } = 10 * 1024 * 1024; //10MB
 
+        /// <summary>
+        /// Returns all archive file and the active file in order of file id lowest first
+        /// </summary>
+        /// <returns></returns>
         public IEnumerable<DataFile> ListDataFiles()
         {
-            yield return activeFile;
-            foreach (var file in archiveFiles.Values)
+            var archiveIds = new uint[archiveFiles.Count];
+            archiveFiles.Keys.CopyTo(archiveIds, 0);
+            Array.Sort(archiveIds);
+
+            foreach (var fileId in archiveIds)
             {
-                yield return file;
+                yield return archiveFiles[fileId];
             }
+            // the active file will always have the heightest file id
+            yield return activeFile;
         }
 
         public IEnumerable<byte[]> Keys
@@ -51,24 +59,49 @@ namespace KVDB
             }
             if (File.Exists(path))
             {
-                var header = DataFile.ReadHeader(path);
-                activeFile = new DataFile(path, header.FileID, true);
+                throw new Exception("Path is a file, expected directory");
+            }
+            if (!Directory.Exists(path))
+            {
+                Directory.CreateDirectory(path);
+            }
+            dataDir = path;
+
+            var activeFilePath = Path.Combine(path, "active.db");
+            if (File.Exists(activeFilePath))
+            {
+                var header = DataFile.ReadHeader(activeFilePath);
+                activeFile = new DataFile(activeFilePath, header.FileID, true);
                 nextFileID = header.FileID + 1;
             }
             else
             {
-                activeFile = new DataFile(path, nextFileID++, true);
+                activeFile = new DataFile(activeFilePath, nextFileID++, true);
             }
             archiveFiles.Clear();
+
+            var archiveNameRe = new Regex(@"^archive\.(?<id>[0-9]+)\.db$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+            var archivePaths = Directory.GetFiles(path, "archive.*.db", SearchOption.TopDirectoryOnly);
+            foreach (var archivePath in archivePaths)
+            {
+                var archiveName = Path.GetFileName(archivePath);
+                var match = archiveNameRe.Match(archiveName);
+                if (!match.Success)
+                {
+                    throw new Exception($"Archive file {archiveName} has an invalid name");
+                }
+                var fileId = uint.Parse(match.Groups["id"].Value);
+                archiveFiles.Add(fileId, new DataFile(archivePath, fileId, false));
+            }
 
             directory.Clear();
             foreach (var file in ListDataFiles())
             {
                 file.Reset();
-                RecordPointer? pointer;
+                RecordPointer pointer;
                 while((pointer = file.NextPointer()) != null)
                 {
-                    directory.Add(pointer.Value);
+                    directory.Add(pointer);
                 }
             }
         }
@@ -98,19 +131,25 @@ namespace KVDB
                 value = new byte[0];
             }
             directory.Add(activeFile.Append(new Record(key, value)));
+            if (activeFile.Size > ActiveDataFileSizeLimit)
+            {
+                activeFile.Archive();
+                archiveFiles.Add(activeFile.FileID, activeFile);
+                activeFile = new DataFile(Path.Combine(dataDir, "active.db"), nextFileID++, true);
+            }
         }
 
         public byte[] Get(byte[] key)
         {
             var pointer = directory.Find(key);
-            if (pointer == null || pointer.Value.ValueSize == 0)
+            if (pointer == null || pointer.ValueSize == 0)
             {
                 return null;
             }
 
             foreach (var file in ListDataFiles())
             {
-                var data = file.GetFromPointer(pointer.Value);
+                var data = file.GetFromPointer(pointer);
                 if (data != null)
                 {
                     if (data.Length == 0)
@@ -123,7 +162,7 @@ namespace KVDB
             return null;
         }
 
-        public void Dispose()
+        void IDisposable.Dispose()
         {
             Close();
         }

@@ -25,7 +25,8 @@ namespace KVDB.Storage
         {
             pointers.Clear();
         }
-        public RecordPointer? Find(byte[] key)
+
+        public RecordPointer Find(byte[] key)
         {
             var result = pointers.Find(key);
             if (result != null)
