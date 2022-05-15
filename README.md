@@ -4,5 +4,4 @@ Simple key-value database based on raiks [bitcask](https://riak.com/assets/bitca
 
 # TODO
 
-* Concurrency support
 * HTTP API

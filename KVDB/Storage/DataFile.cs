@@ -32,7 +32,7 @@ namespace KVDB.Storage
             {
                 if (!writeable)
                 {
-                    throw new Exception("Data file header missing");
+                    throw new InvalidDataException("Data file header missing");
                 }
                 header = new FileHeader(fileID);
                 FileHeaderConverter.ToStream(header, file);
@@ -44,7 +44,7 @@ namespace KVDB.Storage
 
                 if (header.FileID != fileID)
                 {
-                    throw new Exception($"File id ({header.FileID}) does not match expected id ({fileID})");
+                    throw new InvalidDataException($"File id ({header.FileID}) does not match expected id ({fileID})");
                 }
             }
             Size = file.Length;
