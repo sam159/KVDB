@@ -4,5 +4,5 @@ Simple key-value database based on raiks [bitcask](https://riak.com/assets/bitca
 
 # TODO
 
-* Implement hint files
-* Implement merging archive data files
+* Concurrency support
+* HTTP API

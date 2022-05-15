@@ -7,5 +7,10 @@
         public int ValueSize;
         public long ValuePosition;
         public long Timestamp;
+
+        public bool ValueEmpty
+        {
+            get { return ValueSize == 0; }
+        }
     }
 }

@@ -2,20 +2,21 @@
 using System.IO;
 using KVDB.DataObject;
 using KVDB.Converters;
+using System.Collections.Generic;
 
 namespace KVDB.Storage
 {
     public class DataFile : IDisposable
     {
-        public static DataFileHeader ReadHeader(string path)
+        public static FileHeader ReadHeader(string path)
         {
             using var file = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-            return DataFileHeaderConverter.FromStream(file);
+            return FileHeaderConverter.FromStream(file);
         }
 
         FileStream file;
 
-        DataFileHeader header;
+        FileHeader header;
 
         public DataFile(string path, uint fileID, bool writeable)
         {
@@ -33,17 +34,13 @@ namespace KVDB.Storage
                 {
                     throw new Exception("Data file header missing");
                 }
-                header = new DataFileHeader()
-                {
-                    FileID = fileID,
-                    Created = DateTimeOffset.Now.ToUnixTimeSeconds()
-                };
-                DataFileHeaderConverter.ToStream(header, file);
+                header = new FileHeader(fileID);
+                FileHeaderConverter.ToStream(header, file);
                 file.Flush();
             }
             else
             {
-                header = DataFileHeaderConverter.FromStream(file);
+                header = FileHeaderConverter.FromStream(file);
 
                 if (header.FileID != fileID)
                 {
@@ -53,10 +50,15 @@ namespace KVDB.Storage
             Size = file.Length;
         }
 
+        bool disposed = false;
         public void Dispose()
         {
-            ((IDisposable)file).Dispose();
-            file = null;
+            if (!disposed)
+            {
+                ((IDisposable)file).Dispose();
+                file = null;
+                disposed = true;
+            }
         }
 
         public uint FileID
@@ -71,36 +73,52 @@ namespace KVDB.Storage
         {
             get
             {
-                return DateTimeOffset.FromUnixTimeSeconds(header.Created);
+                return DateTimeOffset.FromUnixTimeMilliseconds(header.Created);
+            }
+        }
+
+        public string FilePath
+        {
+            get
+            {
+                return file.Name;
             }
         }
 
         public long Size { get; private set; }
-        public void Reset()
+
+        private void Reset()
         {
             file.Seek(12, SeekOrigin.Begin);
         }
 
-        public RecordPointer NextPointer()
+        private bool scanning = false;
+        public IEnumerable<RecordPointer> Scan()
         {
-            if (file.Position >= Size)
+            if (scanning)
             {
-                return null;
+                throw new InvalidOperationException("file scan already in progress");
             }
+            scanning = true;
+            Reset();
 
-            var record = RecordConverter.FromStream(file);
-            if (!record.ValidChecksum())
+            while(file.Position < Size)
             {
-                throw new Exception("Invalid checksum");
+                var record = RecordConverter.FromStream(file);
+                if (!record.ValidChecksum())
+                {
+                    throw new Exception("Invalid checksum");
+                }
+                yield return new RecordPointer()
+                {
+                    Key = record.Key,
+                    FileID = FileID,
+                    Timestamp = record.Timestamp,
+                    ValueSize = record.ValueSize,
+                    ValuePosition = file.Position - record.ValueSize
+                };
             }
-            return new RecordPointer()
-            {
-                Key = record.Key,
-                FileID = FileID,
-                Timestamp = record.Timestamp,
-                ValueSize = record.ValueSize,
-                ValuePosition = file.Position - record.ValueSize
-            };
+            scanning = false;
         }
 
         public RecordPointer Append(Record record)
@@ -138,7 +156,15 @@ namespace KVDB.Storage
             }
         }
 
-        public byte[] GetFromPointer(RecordPointer pointer)
+        public void Delete()
+        {
+            var path = file.Name;
+            Dispose();
+            File.Delete(path);
+            HintFile.Delete(Path.GetDirectoryName(path), FileID);
+        }
+
+        public byte[] GetValueFromPointer(RecordPointer pointer)
         {
             if (pointer.FileID != FileID)
             {
@@ -148,6 +174,35 @@ namespace KVDB.Storage
             byte[] value = new byte[pointer.ValueSize];
             file.Read(value);
             return value;
+        }
+
+        public Record GetRecordFromPointer(RecordPointer pointer)
+        {
+            if (pointer.FileID != FileID)
+            {
+                throw new Exception("Wrong file");
+            }
+            var record = new Record()
+            {
+                Key = pointer.Key,
+                KeySize = (ushort)pointer.Key.Length,
+                Timestamp = pointer.Timestamp,
+                ValueSize = pointer.ValueSize,
+                Value = GetValueFromPointer(pointer)
+            };
+            record.UpdateChecksum();
+            return record;
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is DataFile file &&
+                   FileID == file.FileID;
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(FileID);
         }
     }
 }

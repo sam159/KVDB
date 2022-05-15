@@ -6,7 +6,6 @@
 
   <ItemGroup>
     <PackageReference Include="Crc32.NET" Version="1.2.0" />
-    <PackageReference Include="VDS.Common" Version="1.10.0" />
   </ItemGroup>
 
 </Project>

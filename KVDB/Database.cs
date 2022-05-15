@@ -1,5 +1,6 @@
 ﻿using KVDB.Storage;
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
@@ -92,16 +93,29 @@ namespace KVDB
                 }
                 var fileId = uint.Parse(match.Groups["id"].Value);
                 archiveFiles.Add(fileId, new DataFile(archivePath, fileId, false));
+                if (nextFileID <= fileId)
+                {
+                    nextFileID = fileId + 1;
+                }
             }
 
             directory.Clear();
             foreach (var file in ListDataFiles())
             {
-                file.Reset();
-                RecordPointer pointer;
-                while((pointer = file.NextPointer()) != null)
+                if (HintFile.Exists(dataDir, file.FileID))
                 {
-                    directory.Add(pointer);
+                    var hints = new HintFile(dataDir, file.FileID, false);
+                    foreach (var pointer in hints.Scan())
+                    {
+                        directory.Add(pointer);
+                    }
+                }
+                else
+                {
+                    foreach (var pointer in file.Scan())
+                    {
+                        directory.Add(pointer);
+                    }
                 }
             }
         }
@@ -142,14 +156,14 @@ namespace KVDB
         public byte[] Get(byte[] key)
         {
             var pointer = directory.Find(key);
-            if (pointer == null || pointer.ValueSize == 0)
+            if (pointer == null || pointer.ValueEmpty)
             {
                 return null;
             }
 
             foreach (var file in ListDataFiles())
             {
-                var data = file.GetFromPointer(pointer);
+                var data = file.GetValueFromPointer(pointer);
                 if (data != null)
                 {
                     if (data.Length == 0)
@@ -160,6 +174,57 @@ namespace KVDB
                 }
             }
             return null;
+        }
+
+        public void MergeArchives()
+        {
+            if (archiveFiles.Count <= 1)
+            {
+                return;
+            }
+            // Create the merged data file
+            var merged = new DataFile(Path.Combine(dataDir, "merge.db"), nextFileID, true);
+            archiveFiles.Add(merged.FileID, merged);
+            // Get an upto date list of current keys, excludes deleted and overwritten values
+            var mergedDirectory = new KeyDirectory();
+            foreach (var file in archiveFiles.Values)
+            {
+                foreach (var pointer in file.Scan())
+                {
+                    directory.Remove(pointer);
+                    if (!pointer.ValueEmpty)
+                    {
+                        mergedDirectory.Add(pointer);
+                    }
+                }
+            }
+            // Add those pointers to the merged data file and its new hint file
+            using var mergedHints = new HintFile(merged, true);
+            foreach (var pointer in mergedDirectory.Pointers)
+            {
+                var mergedPointer = merged.Append(archiveFiles[pointer.FileID].GetRecordFromPointer(pointer));
+                mergedHints.Append(mergedPointer);
+                directory.Add(mergedPointer);
+            }
+            // Convert the merged file into an archive file
+            merged.Archive();
+            // Replace all current archive files with the new merged one
+            var oldArchives = archiveFiles.Values.Where(a => !a.Equals(merged)).ToArray();
+            foreach (var archive in oldArchives)
+            {
+                archiveFiles.Remove(archive.FileID);
+                archive.Delete();
+            }
+        }
+
+        public void Clear()
+        {
+            activeFile.Delete();
+            foreach (var file in archiveFiles.Values)
+            {
+                file.Delete();
+            }
+            Open(dataDir);
         }
 
         void IDisposable.Dispose()

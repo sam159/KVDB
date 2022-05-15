@@ -1,23 +1,25 @@
-﻿using VDS.Common.Trees;
-using KVDB.DataObject;
+﻿using KVDB.DataObject;
 using System.Collections.Generic;
 
 namespace KVDB.Storage
 {
     public class KeyDirectory
     {
-        readonly AVLTree<byte[], RecordPointer> pointers;
+        readonly Dictionary<byte[], LinkedList<RecordPointer>> pointers = new Dictionary<byte[], LinkedList<RecordPointer>>(new ByteArrayComparer());
 
-        public KeyDirectory()
-        {
-            pointers = new AVLTree<byte[], RecordPointer>(new ByteArrayComparer());
-        }
-
+        /// <summary>
+        /// Iterates latest version of all keys
+        /// </summary>
         public IEnumerable<RecordPointer> Pointers
         {
-            get
-            {
-                return pointers.Values;
+            get {
+                foreach (var list in pointers.Values)
+                {
+                    if (list.Count > 0)
+                    {
+                        yield return list.Last.Value;
+                    }
+                }
             }
         }
 
@@ -28,27 +30,60 @@ namespace KVDB.Storage
 
         public RecordPointer Find(byte[] key)
         {
-            var result = pointers.Find(key);
-            if (result != null)
+            LinkedList<RecordPointer> list;
+            if (!pointers.TryGetValue(key, out list))
             {
-                return result.Value;
+                return null;
             }
-            return null;
+            return list.Last?.Value;
         }
 
         public void Add(RecordPointer pointer)
         {
-            var result = pointers.Find(pointer.Key);
-            if (result != null)
+            LinkedList<RecordPointer> list;
+            if (!pointers.TryGetValue(pointer.Key, out list))
             {
-                if (pointer.Timestamp >= result.Value.Timestamp)
+                list = new LinkedList<RecordPointer>();
+                list.AddLast(pointer);
+                pointers.Add(pointer.Key, list);
+                return;
+            }
+            if (list.Count == 0 || list.Last.Value.Timestamp <= pointer.Timestamp)
+            {
+                list.AddLast(pointer);
+                return;
+            }
+            var node = list.First;
+            while (node != null)
+            {
+                if (node.Value.Timestamp < pointer.Timestamp)
                 {
-                    result.Value = pointer;
+                    list.AddAfter(node, pointer);
+                    break;
+                }
+                node = node.Next;
+            }
+        }
+
+        public void Remove(RecordPointer pointer)
+        {
+            LinkedList<RecordPointer> list;
+            if (!pointers.TryGetValue(pointer.Key, out list))
+            {
+                return;
+            }
+            var node = list.First;
+            while(node != null)
+            {
+                if (node.Value.FileID == pointer.FileID && node.Value.ValuePosition == pointer.ValuePosition)
+                {
+                    list.Remove(node);
+                    break;
                 }
             }
-            else
+            if (list.Count == 0)
             {
-                pointers.Add(pointer.Key, pointer);
+                pointers.Remove(pointer.Key);
             }
         }
     }
