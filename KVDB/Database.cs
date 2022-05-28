@@ -13,6 +13,7 @@ namespace KVDB
     {
         string dataDir;
         DataFile activeFile;
+        LockFile lockFile;
         readonly Dictionary<uint, DataFile> archiveFiles = new Dictionary<uint, DataFile>();
 
         uint nextFileID = 1;
@@ -100,6 +101,12 @@ namespace KVDB
                 }
                 dataDir = path;
 
+                lockFile = new LockFile(dataDir);
+                if (!lockFile.Lock())
+                {
+                    throw new Exception("Could not lock database for opening");
+                }
+
                 var activeFilePath = Path.Combine(path, "active.db");
                 if (File.Exists(activeFilePath))
                 {
@@ -159,6 +166,10 @@ namespace KVDB
 
         public void Close()
         {
+            if (activeFile == null)
+            {
+                return;
+            }
             writeLock.AcquireWriterLock(WriterTimeout);
             try
             {
@@ -171,6 +182,8 @@ namespace KVDB
                 archiveFiles.Clear();
                 directory.Clear();
                 nextFileID = 1;
+                lockFile.Unlock();
+                lockFile = null;
             }
             finally
             {
