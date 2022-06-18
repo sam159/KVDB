@@ -1,0 +1,21 @@
+{
+  "profiles": {
+    "WSL": {
+      "commandName": "WSL2",
+      "environmentVariables": {},
+      "distributionName": ""
+    },
+    "CLI Dump": {
+      "commandName": "Project",
+      "commandLineArgs": "dump -p test dump.json"
+    },
+    "CLI Load": {
+      "commandName": "Project",
+      "commandLineArgs": "load -p test dump.json"
+    },
+    "CLI Keys": {
+      "commandName": "Project",
+      "commandLineArgs": "keys -p test"
+    }
+  }
+}
