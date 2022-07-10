@@ -32,8 +32,6 @@ namespace KVDB.WebAPI
             app.MapControllers();
 
             app.Run();
-
-            app.Services.GetService<Database>()?.Close();
         }
     }
 }
