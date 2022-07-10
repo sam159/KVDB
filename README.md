@@ -8,7 +8,9 @@ Simple key-value database based on raiks [bitcask](https://riak.com/assets/bitca
 * Hint files
 * Online archive merging
 * Lock File
+* HTTP api server
 
 # TODO
 
-* HTTP/Network API
+* Add binary support to http api
+* Make db access async
