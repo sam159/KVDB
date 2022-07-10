@@ -64,16 +64,41 @@ namespace KVDB.CLI
         [Verb("keys", HelpText = "lists keys within the database")]
         class KeysOptions : DefaultOptions { }
 
-        static void Main(string[] args)
+        class GetSetOptions : DefaultOptions
         {
-            Parser.Default.ParseArguments<DumpOptions, LoadOptions, KeysOptions>(args)
+            [Value(0, Required = true, HelpText = "the key")]
+            public string Key { get; set; }
+
+            [Option('f', "format", Default = "text", HelpText = "output format. One of text, hex, base64")]
+            public string Format { get; set; }
+        }
+
+        [Verb("get", HelpText = "gets the value of a key")]
+        class GetOptions : GetSetOptions { }
+
+        [Verb("set", HelpText = "gets the value of a key")]
+        class SetOptions : GetSetOptions
+        {
+            [Value(1, Required = true, HelpText = "the value")]
+            public string Value { get; set; }
+        }
+
+        static int exitCode = 0;
+
+        static int Main(string[] args)
+        {
+            Parser.Default.ParseArguments<DumpOptions, LoadOptions, KeysOptions, GetOptions, SetOptions>(args)
                 .WithParsed<DumpOptions>(DumpDB)
                 .WithParsed<LoadOptions>(LoadDB)
                 .WithParsed<KeysOptions>(Keys)
+                .WithParsed<GetOptions>(Get)
+                .WithParsed<SetOptions>(Set)
                 .WithNotParsed(errors =>
                 {
                     errors.Output();
                 });
+
+            return exitCode;
         }
 
         static void DumpDB(DumpOptions options)
@@ -109,7 +134,7 @@ namespace KVDB.CLI
             {
                 var data = new List<byte>();
                 int x;
-                while((x = Console.Read()) != 0)
+                while ((x = Console.Read()) != 0)
                 {
                     data.Add((byte)x);
                 }
@@ -171,6 +196,73 @@ namespace KVDB.CLI
             {
                 Console.WriteLine(enc.GetString(key));
             }
+        }
+
+        static void Get(GetOptions options)
+        {
+            using var db = options.GetDatabase();
+            var enc = options.GetEncoding();
+
+            var key = enc.GetBytes(options.Key);
+
+            var value = db.Get(key);
+
+            if (value == null)
+            {
+                exitCode = 1;
+                return;
+            }
+
+            if (options.Format == "text")
+            {
+                Console.WriteLine(enc.GetString(value));
+            }
+            else if (options.Format == "hex")
+            {
+                Console.WriteLine(string.Join("", value.Select(x => x.ToString("X"))));
+            }
+            else if (options.Format == "base64")
+            {
+                Console.WriteLine(Convert.ToBase64String(value));
+            }
+        }
+        static void Set(SetOptions options)
+        {
+            using var db = options.GetDatabase();
+            var enc = options.GetEncoding();
+
+            var key = enc.GetBytes(options.Key);
+
+            byte[] value;
+
+            if (options.Format == "text")
+            {
+                value = enc.GetBytes(options.Value);
+            }
+            else if (options.Format == "hex")
+            {
+                // TODO: format check
+                var text = options.Value;
+                List<byte> converted = new List<byte>(text.Length / 2);
+                while (text.Length > 1)
+                {
+                    converted.Add(byte.Parse(text.Substring(0, 2), System.Globalization.NumberStyles.HexNumber));
+                    text = text.Substring(2);
+                }
+                value = converted.ToArray();
+            }
+            else if (options.Format == "base64")
+            {
+                value = Convert.FromBase64String(options.Value);
+            }
+            else
+            {
+                exitCode = 1;
+                Console.WriteLine("invalid format");
+                return;
+            }
+
+            db.Put(key, value);
         }
     }
 }

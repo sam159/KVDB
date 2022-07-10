@@ -16,6 +16,10 @@
     "CLI Keys": {
       "commandName": "Project",
       "commandLineArgs": "keys -p test"
+    },
+    "CLI Get": {
+      "commandName": "Project",
+      "commandLineArgs": "get -p test test -h"
     }
   }
 }
